@@ -1,0 +1,1628 @@
+
+Notes:
+
+https://notes.kodekloud.com/docs/Python-API-Development-with-FastAPI/FastAPI-Basics/Path-Operations/page
+
+Fast API documentation
+
+https://fastapi.tiangolo.com/tutorial/first-steps/
+
+=======================================
+from fastapi import FastAPI
+
+app = FastAPI()
+
+@app.get("/")
+async def root():
+    return {"message": "Hello World"}
+=======================================
+
+#Path Operations or Routes:
+
+-- Specifies the http method and the function associated with it to be run for the specified path/route
+
+A Path Operation in FastAPI is composed of two main parts:
+The Function
+This is a typical Python function that contains the endpoint’s logic. In the example above, the function returns a Python dictionary, which FastAPI automatically converts to JSON.
+The Decorator
+The decorator (indicated by the @ symbol) converts the function into a Path Operation. For instance, @app.get("/") designates the function to handle GET requests at the root URL.
+
+@app.get("/")                     = decorator
+async def root():                 = python function
+    return {"message": "Hello World"}
+	
+#async:
+
+Asynchronous functions are beneficial when performing tasks that may cause delays, such as API calls or database queries. 
+	
+	
+# using reload option to automatically start the server when code changes
+
+(venv) C:\Users\akavety\Desktop\codefiles_ashish\codefiles_fastapi>uvicorn main:app --reload
+INFO:     Will watch for changes in these directories: ['C:\\Users\\akavety\\Desktop\\codefiles_ashish\\codefiles_fastapi']
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process [12256] using WatchFiles
+INFO:     Started server process [5880]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+
+
+# HTTP methods
+https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods
+
+# using POSTMAN
+
+
+# POST requests
+
+from fastapi.params import Body
+
+@app.post("/createposts")
+def create_posts(payload: dict = Body(...)):
+    print(payload)
+    return {"new_post": f"title: {payload['title']} content: {payload['content']}"}
+	
+	
+	
+# Schema Validation using Pydantic
+
+from pydantic import BaseModel
+
+class Post(BaseModel):
+    title : str
+    content : str
+
+
+
+@app.post("/createPost")
+def createPosts(new_post: Post):
+    print(new_post)
+    return{"data": "new post"}
+	
+	
+INFO:     Started server process [21160]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+title='list of temples' content='check out the list of temples'
+INFO:     127.0.0.1:55552 - "POST /createPost HTTP/1.1" 200 OK
+
+
+# using optional fields
+
+
+from fastapi import FastAPI
+from fastapi.params import Body
+from pydantic import BaseModel
+from typing import Optional
+
+app = FastAPI()
+
+class Post(BaseModel):
+    title : str
+    content : str
+    published: bool = True  # Defaults to True if not provided
+    rating: Optional[int] = None  # Optional field
+
+
+
+@app.get("/")
+async def root():
+    return {"message": "Hello, this is Ashish"}
+
+@app.get("/posts")
+def get_posts():
+    return {"data": "These are your posts"}
+
+@app.post("/createposts")
+def create_posts(payload: dict = Body(...)):
+    print(payload)
+    return {"new_post": f"title: {payload['title']} content: {payload['content']}"}
+
+@app.post("/createPost")
+def createPosts(post: Post):
+    print(post)
+    
+    return{"data": post}
+	
+	
+	
+INFO:     Started server process [23768]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+title='list of temples' content='check out the list of temples' published=False rating=5
+INFO:     127.0.0.1:64528 - "POST /createPost HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64801 - "POST /createPost HTTP/1.1" 422 Unprocessable Content
+title='list of temples' content='check out the list of temples' published=False rating=4
+INFO:     127.0.0.1:64805 - "POST /createPost HTTP/1.1" 200 OK
+
+
+
+#CRUD operations
+
+-- always use plural which is convention
+-- use conventional naming for CRUD operations
+
+
+
+#Consolidated CRUD Example:
+
+Below is a complete example of CRUD endpoints for the posts resource:
+@app.post("/posts")
+@app.get("/posts")
+@app.get("/posts/{id}")
+@app.put("/posts/{id}")
+@app.delete("/posts/{id}")
+
+
+# Getting single post by ID
+
+from fastapi import FastAPI
+from fastapi.params import Body
+from pydantic import BaseModel
+from random import randrange
+from typing import Optional
+
+app = FastAPI()
+
+class Post(BaseModel):
+    title: str
+    content: str
+    published: bool = True
+    rating: Optional[int] = None
+
+my_posts = [
+    {"title": "title of post 1", "content": "content of post 1", "id": 1},
+    {"title": "favorite foods", "content": "I like pizza", "id": 2}
+]
+
+def find_post(id):
+    for p in my_posts:
+        if p["id"] == id:
+            return p
+
+@app.get("/")
+def root():
+    return {"message": "Hello World"}
+
+@app.get("/posts")
+def get_posts():
+    return {"data": my_posts}
+
+@app.post("/posts")
+def create_posts(post: Post):
+    post_dict = post.dict()
+    post_dict['id'] = randrange(0, 100000)
+    my_posts.append(post_dict)
+    return {"data": post_dict}
+
+@app.get("/posts/{id}")
+def get_post(id: int):
+    post = find_post(id)
+    print(post)
+    return {"post_detail": post}
+	
+	
+	
+{'title': 'Cockroach Janata Party', 'content': 'well done', 'id': 3}
+INFO:     127.0.0.1:59148 - "GET /posts/3 HTTP/1.1" 200 OK
+
+
+
+# path order matters as fastapi scans from top to bottom and there can be a conflict
+
+# http status codes
+
+-- Conventional http status code for a POST request is 201
+
+-- if a resource is not found, we should return 404
+
+-- using HTTPException for cleaner error handling
+
+
+===========================================================
+from fastapi import FastAPI, Response, status, HTTPException
+from fastapi.params import Body
+from pydantic import BaseModel
+from typing import Optional
+from random import randrange
+
+app = FastAPI()
+
+class Post(BaseModel):
+    title : str
+    content : str
+    published: bool = True  # Defaults to True if not provided
+    rating: Optional[int] = None  # Optional field
+
+
+# In memory storage of posts in a list
+
+my_posts =[ {"title": "My first post", "content" : "Hi I am ariting this so that you can see my work", "id": 1},
+            {"title": "My fav food", "content" : "burger", "id" : 2},
+            {"title":"Cockroach Janata Party", "content":"well done", "id": 3}]
+
+def find_post(id):
+    for p in my_posts:
+        if p["id"] == id:
+            return p
+        
+
+
+@app.get("/")
+async def root():
+    return {"message": "Hello, this is Ashish and this is my app"}
+
+@app.get("/posts")
+def get_posts():
+    return {"data": my_posts}
+
+@app.post("/posts", status_code=status.HTTP_201_CREATED)
+def create_post(post: Post):
+    # Convert Pydantic Model into dictionary
+    post_dict = post.model_dump()
+    # add a unique id to the post
+    post_dict["id"] = randrange(0, 1000000)
+    # Add new post to the im-memory list of posts
+    my_posts.append(post_dict)
+    
+    return{"data": post_dict}
+
+@app.get("/posts/{id}")
+def get_post(id: int):
+    #find the post based on the id with a helper function
+    post = find_post(id)
+    if not post:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail = f"The post with id: {id} was not found")
+    return {"data" : post}
+===========================================================
+
+
+INFO:     127.0.0.1:59980 - "POST /posts HTTP/1.1" 201 Created
+
+INFO:     127.0.0.1:61742 - "GET /posts/5 HTTP/1.1" 404 Not Found
+
+
+# Adding delete operation:
+
+
+==========================================
+from fastapi import FastAPI, Response, status, HTTPException
+from fastapi.params import Body
+from pydantic import BaseModel
+from typing import Optional
+from random import randrange
+
+app = FastAPI()
+
+class Post(BaseModel):
+    title : str
+    content : str
+    published: bool = True  # Defaults to True if not provided
+    rating: Optional[int] = None  # Optional field
+
+
+# In memory storage of posts in a list
+
+my_posts =[ {"title": "My first post", "content" : "Hi I am ariting this so that you can see my work", "id": 1},
+            {"title": "My fav food", "content" : "burger", "id" : 2},
+            {"title":"Cockroach Janata Party", "content":"well done", "id": 3}]
+
+def find_post(id):
+    for p in my_posts:
+        if p["id"] == id:
+            return p
+
+def find_index(id):
+    for i,p in enumerate(my_posts):
+        if p["id"] == id:
+            return i
+        
+
+
+@app.get("/")
+async def root():
+    return {"message": "Hello, this is Ashish and this is my app"}
+
+@app.get("/posts")
+def get_posts():
+    return {"data": my_posts}
+
+@app.post("/posts", status_code=status.HTTP_201_CREATED)
+def create_post(post: Post):
+    # Convert Pydantic Model into dictionary
+    post_dict = post.model_dump()
+    # add a unique id to the post
+    post_dict["id"] = randrange(0, 1000000)
+    # Add new post to the im-memory list of posts
+    my_posts.append(post_dict)
+    
+    return{"data": post_dict}
+
+@app.get("/posts/{id}")
+def get_post(id: int):
+    #find the post based on the id with a helper function
+    post = find_post(id)
+    if not post:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail = f"The post with id: {id} was not found")
+    return {"data" : post}
+
+
+@app.delete("/posts/{id}")
+def delete_post(id: int):
+    #find the index based on the id with a helper function
+    index = find_index(id)
+    if not index:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail = f"The post with id: {id} was not found")
+
+    my_posts.pop(index)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+=======================================================
+
+
+# PUT operation for update
+
+
+
+@app.put("/posts/{id}")
+def update_post(id: int, post: Post):
+    index = find_index_post(id)
+    if index == -1:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Post with id: {id} does not exist"
+        )
+    post_dict = post.dict()
+    post_dict['id'] = id
+    my_posts[index] = post_dict
+    return {"data": post_dict}
+	
+	
+# documentation in built using swagger ui
+
+
+http://127.0.0.1:8000/docs
+
+
+#Databases
+
+- Relational vs non Relational
+
+- Tables and Schemas
+
+Tables:  a table represents a subject or event within your application. For instance, an e-commerce platform may have separate tables for users, products, purchases, and reviews. Each table stores specific data related to its subject and forms relationships with other tables—for example, a purchase record is linked to a user account and includes details of the products purchased. This relationship-driven design is crucial for building an efficient and well-structured database.
+
+Tables are fundamentally composed of columns and rows. Columns represent different attributes of the data. For example, in a users table, you might include columns for the user’s name, age, gender, email, and addresses. Each column is designed to store a specific type of information. Rows, on the other hand, represent individual entries within the table. 
+
+SQL:
+SQL (Structured Query Language) is the standard language used to communicate with the DBMS. With SQL, you perform various operations such as inserting, updating, and retrieving data. When you send SQL statements to the DBMS, it processes these commands and returns the requested results.
+
+- Primary Key
+
+When creating a table, you designate one or more columns as the primary key. The primary key uniquely identifies each record in the table, ensuring no two rows share the same key. 
+
+# Datatypes in DB: varchar, decimal, integer, boolean etc
+
+- UNIQUE and NOT NULL constraints
+
+products table in fastapi database
+
+
+SELECT * FROM products;
+
+#renaming
+
+SELECT id AS products_id, is_sale AS on_sale FROM products;
+
+#WHERE clause
+
+SELECT * FROM products WHERE id = 7;
+
+SELECT * FROM products WHERE name = 'TV';
+
+SELECT * FROM products WHERE price = 200;
+
+SELECT * FROM products WHERE price > 50;
+
+# IN operator
+
+SELECT * FROM products WHERE id IN (1, 2, 3);
+
+# LIKE 
+
+SELECT * FROM products WHERE name LIKE 'A%';
+
+#ORDER BY
+
+SELECT * FROM products ORDER BY price DESC;
+
+SELECT * FROM products WHERE price > 20 ORDER BY created_at DESC;
+
+
+#LIMIT offset
+
+SELECT * FROM products LIMIT 10;
+
+-- limit to first 10 rows
+
+SELECT * FROM products ORDER BY id LIMIT 5 OFFSET 2;
+
+-- skip the first 2 rows
+
+
+# INSERT
+
+INSERT INTO products (name, price, inventory) VALUES ('tortilla', 4, 1000);
+
+INSERT INTO products (price, name, inventory) VALUES (4, 'tortilla', 1000) RETURNING *;
+
+# DELETE
+
+DELETE FROM products WHERE id = 10;
+SELECT * FROM products;
+
+# UPDATE
+
+UPDATE products
+SET is_sale = true
+WHERE id = 30
+RETURNING *;
+
+
+# Connecting python application to database
+
+- pysycopg2
+
+pip install "psycopg[binary,pool]"
+
+=======================================
+
+import psycopg2
+
+# Establish a connection to the PostgreSQL database
+conn = psycopg2.connect("dbname=test user=postgres")
+cur = conn.cursor()
+
+# Create a table, insert data, and fetch it
+cur.execute("CREATE TABLE test (id serial PRIMARY KEY, num integer, data varchar);")
+cur.execute("INSERT INTO test (num, data) VALUES (%s, %s)", (100, "abc'def"))
+cur.execute("SELECT * FROM test;")
+print(cur.fetchall())
+
+# Commit the transaction and close connections
+conn.commit()
+cur.close()
+conn.close()
+=======================================
+
+
+-- Newer version
+
+
+==============================================
+import psycopg
+from psycopg.rows import dict_row
+import time
+
+
+# Continuously attempt to connect to the database until successful
+while True:
+    try:
+        conn = psycopg.connect(
+            host = 'localhost',
+            dbname = 'fastapi',
+            user = 'postgres',
+            password = 'MEgh#_2891',
+            row_factory = dict_row
+        )
+        cur = conn.cursor()
+        print("Db connection is successful")
+        break # Exit loop on successful connection
+    except Exception as error:
+        print("Connecting to DB Failed")
+        print("Error: ", error)
+        time.sleep(5) # Wait 5 seconds before retrying
+======================================================
+
+
+- Retrieve posts
+
+@app.get("/posts")
+def get_posts():
+    cur.execute(""" SELECT * FROM posts""")
+    posts = cur.fetchall()
+    return {"data": posts}
+	
+- create posts:
+
+@app.post("/posts", status_code=status.HTTP_201_CREATED)
+def create_post(post: Post):
+    cur.execute("""INSERT into posts (title, content, published) VALUES (%s, %s, %s) RETURNING * """,(post.title, post.content, post.published))
+    new_post = cur.fetchone()
+    conn.commit()
+    return{"data": new_post}
+	
+- get by id:
+
+@app.get("/posts/{id}")
+def get_post(id: int):
+    cur.execute("SELECT * FROM posts WHERE id = %s", (str(id),))
+    post = cur.fetchone()
+    if not post:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail = f"The post with id: {id} was not found")
+    return {"data" : post}
+	
+- update post
+
+@app.put("/posts/{id}")
+def update_post(id: int, post: Post):
+    cur.execute("""UPDATE posts SET title = %s, content = %s, published = %s WHERE id = %s RETURNING *""", (post.title, post.content, post.published, str(id)))
+    updated_post = cur.fetchone()
+    if updated_post is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Post with id: {id} does not exist"
+        )
+    conn.commit()
+    
+    return {"data": updated_post}
+	
+	
+#Object Relational Mapping
+
+#SQLalchemy
+
+- python lib used to achieve ORM
+
+An ORM acts as an abstraction layer between your application (for example, a FastAPI server) and the underlying database. Instead of writing SQL statements by hand, you interact with the database using standard Python code. The ORM handles converting your Python instructions into SQL commands, streamlining database interactions.
+
+-- One major advantage of using an ORM is the ability to define your database tables as Python models. This approach eliminates the need to manually create tables via a database management tool like PgAdmin.
+
+-- Setting up connection to the DB using connection string
+
+database.py
+
+==================================================
+
+from sqlalchemy import create_engine
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+
+# For PostgreSQL:
+# Format: postgresql://<username>:<password>@<ip-address>/<database_name>
+SQLALCHEMY_DATABASE_URL = "postgresql://postgres:MEgh#_2891@localhost/fastapi"
+
+engine = create_engine(SQLALCHEMY_DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+# Base class for our models
+Base = declarative_base()
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+====================================================
+
+-- Creating model for table that can be created automatically using ORM
+
+models.py
+
+====================================================
+from sqlalchemy import Column, Integer, String, Boolean, text
+from .database import Base
+from sqlalchemy.sql.sqltypes import TIMESTAMP
+
+class Post(Base):
+    __tablename__ = "posts_sqlalchemy"
+
+    id = Column(Integer, primary_key=True, nullable=False)
+    title = Column(String, nullable=False)
+    content = Column(String, nullable=False)
+    published = Column(Boolean, server_default='True', nullable=False)
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text('now()'))
+======================================================
+
+-- Testing with simple get request
+
+=============================================================
+from fastapi import FastAPI, Response, status, HTTPException, Depends
+from fastapi.params import Body
+from pydantic import BaseModel
+from typing import Optional
+from random import randrange
+import psycopg2
+import psycopg
+from psycopg.rows import dict_row
+import time
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy import create_engine
+from sqlalchemy.ext.declarative import declarative_base
+from . import models
+from .database import engine, get_db
+
+models.Base.metadata.create_all(bind=engine)
+
+app = FastAPI()
+
+class Post(BaseModel):
+    title: str
+    content: str
+    published: bool = True
+
+@app.get("/")
+def root():
+    return{"message" : "Hello this is Ashish and you have reached my fastapi app using orm"}
+
+@app.get("/sqlalchemy")
+def test_posts(db: Session = Depends(get_db)):
+    # Using SQLAlchemy's ORM method to query all posts from the Post model.
+    # posts = db.query(models.Post).all()
+    return {"data": "success"}
+
+====================================================================
+
+
+-- Updating all CRUD operations to use ORM
+
+
+==========================================================================
+from fastapi import FastAPI, Response, status, HTTPException, Depends
+from fastapi.params import Body
+from pydantic import BaseModel
+from typing import Optional
+from random import randrange
+import psycopg2
+import psycopg
+from psycopg.rows import dict_row
+import time
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy import create_engine
+from sqlalchemy.ext.declarative import declarative_base
+from . import models
+from .database import engine, get_db
+
+models.Base.metadata.create_all(bind=engine)
+
+app = FastAPI()
+
+class Post(BaseModel):
+    title: str
+    content: str
+    published: bool = True
+
+@app.get("/")
+def root():
+    return{"message" : "Hello this is Ashish and you have reached my fastapi app using orm"}
+
+@app.get("/sqlalchemy")
+def test_posts(db: Session = Depends(get_db)):
+    # Using SQLAlchemy's ORM method to query all posts from the Post model.
+    # posts = db.query(models.Post).all()
+    return {"data": "success"}
+
+@app.get("/posts")
+def test_posts(db: Session = Depends(get_db)):
+    # Using SQLAlchemy's ORM method to query all posts from the Post model.
+    posts = db.query(models.Post).all()
+    return {"data": posts}
+
+@app.post("/posts", status_code=status.HTTP_201_CREATED)
+def create_posts(post: Post, db: Session = Depends(get_db)):
+    
+    new_post = models.Post(**post.model_dump())
+    db.add(new_post)
+    db.commit()
+    db.refresh(new_post)
+    return {"data" : new_post}
+
+@app.get("/posts/{id}")
+def get_post(id: int, db: Session = Depends(get_db) ):
+    post = db.query(models.Post).filter(models.Post.id == id).first()
+    
+    if not post:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail = f"The post with id: {id} was not found")
+    return {"data" : post}
+
+@app.delete("/posts/{id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_post(id: int, db: Session = Depends(get_db) ):
+
+    post = db.query(models.Post).filter(models.Post.id == id)
+
+    if post.first() is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail = f"The post with id: {id} was not found")
+
+    post.delete(synchronize_session = False)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+@app.put("/posts/{id}")
+def update_post(id: int, post: Post, db: Session = Depends(get_db)):
+    post_query = db.query(models.Post).filter(models.Post.id == id)
+    if post_query.first() is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Post with id: {id} does not exist"
+        )
+    post_query.update(post.model_dump(), synchronize_session = False)
+    db.commit()
+    updated_post = post_query.first()
+    
+    return {"data": updated_post}
+=========================================================================
+
+# Pydantic Models vs SqlAlchemy Models
+
+-- pydantic models are use to shape our request/response , they are schema related
+
+-- sqlalchemy models are used for defining tables in the db
+
+Differentiating Between Pydantic and SQLAlchemy Models
+​
+Pydantic Model (Schema)
+The Pydantic model serves to:
+Define Data Structure: Outline the expected structure of the request body.
+Validate Incoming Data: Ensure that the data received adheres to the specified types and constraints.
+Shape Response Data: Optionally filter and format data before sending a response.
+​
+SQLAlchemy Model (ORM)
+The SQLAlchemy model is dedicated to defining the database table structure. It includes:
+Column Definitions: Attributes such as post ID, title, content, published status, and creation timestamps.
+Database Interaction Methods: Functions to query, create, delete, and update database entries.
+
+- Changing code as follows
+
+=======================================
+schemas.py
+
+from pydantic import BaseModel, EmailStr
+from datetime import datetime
+
+
+
+class PostBase(BaseModel):
+    title: str
+    content: str
+    published: bool = True
+
+class PostCreate(PostBase):
+    pass
+
+class Post(PostBase):
+    id: int
+    created_at: datetime
+
+    class Config:
+        orm_mode: True
+
+class UserCreate(BaseModel):
+    email: EmailStr
+    password:  str
+
+
+===========================================================
+
+===========================================================
+models.py
+
+from sqlalchemy import Column, Integer, String, Boolean, text
+from .database import Base
+from sqlalchemy.sql.sqltypes import TIMESTAMP
+
+class Post(Base):
+    __tablename__ = "posts_sqlalchemy"
+
+    id = Column(Integer, primary_key=True, nullable=False)
+    title = Column(String, nullable=False)
+    content = Column(String, nullable=False)
+    published = Column(Boolean, server_default='True', nullable=False)
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text('now()'))
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, nullable=False)
+    email = Column(String, nullable=False, unique=True)
+    password = Column(String, nullable=False)
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text('now()'))
+=======================================================================
+
+
+=======================================================================
+main.py
+
+from fastapi import FastAPI, Response, status, HTTPException, Depends
+from fastapi.params import Body
+from pydantic import BaseModel
+from typing import Optional
+from random import randrange
+import psycopg2
+import psycopg
+from psycopg.rows import dict_row
+import time
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy import create_engine
+from sqlalchemy.ext.declarative import declarative_base
+from . import models, schemas, utils
+from .database import engine, get_db
+from typing import List
+
+
+models.Base.metadata.create_all(bind=engine)
+
+app = FastAPI()
+
+
+@app.get("/")
+def root():
+    return{"message" : "Hello this is Ashish and you have reached my fastapi app using orm"}
+
+@app.get("/sqlalchemy")
+def test_posts(db: Session = Depends(get_db)):
+    # Using SQLAlchemy's ORM method to query all posts from the Post model.
+    # posts = db.query(models.Post).all()
+    return {"data": "success"}
+
+@app.get("/posts", response_model=List[schemas.Post])
+def get_posts(db: Session = Depends(get_db)):
+    # Using SQLAlchemy's ORM method to query all posts from the Post model.
+    posts = db.query(models.Post).all()
+    return posts
+
+@app.post("/posts", status_code=status.HTTP_201_CREATED)
+def create_posts(post: schemas.PostCreate, db: Session = Depends(get_db)):
+    
+    new_post = models.Post(**post.model_dump())
+    db.add(new_post)
+    db.commit()
+    db.refresh(new_post)
+    return new_post
+
+@app.get("/posts/{id}", response_model=schemas.Post)
+def get_post(id: int, db: Session = Depends(get_db) ):
+    post = db.query(models.Post).filter(models.Post.id == id).first()
+    
+    if not post:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail = f"The post with id: {id} was not found")
+    return post
+
+@app.delete("/posts/{id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_post(id: int, db: Session = Depends(get_db) ):
+
+    post = db.query(models.Post).filter(models.Post.id == id)
+
+    if post.first() is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail = f"The post with id: {id} was not found")
+
+    post.delete(synchronize_session = False)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+@app.put("/posts/{id}", response_model=schemas.Post)
+def update_post(id: int, post: schemas.PostCreate, db: Session = Depends(get_db)):
+    post_query = db.query(models.Post).filter(models.Post.id == id)
+    if post_query.first() is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Post with id: {id} does not exist"
+        )
+    post_query.update(post.model_dump(), synchronize_session = False)
+    db.commit()
+    updated_post = post_query.first()
+    
+    return updated_post
+
+
+## Users
+
+@app.post("/users", status_code=status.HTTP_201_CREATED, response_model=schemas.UserOut)
+def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+
+    # hashing password
+
+    
+    user.password = utils.hash_password(user.password)
+    
+    new_user = models.User(**user.model_dump())
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return new_user
+	
+================================================================
+utils.py
+
+from passlib.context import CryptContext
+
+pwd_context =  CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def hash_password(password: str):
+    return pwd_context.hash(password)
+=================================================================
+
+requirements.txt
+
+annotated-doc==0.0.4
+annotated-types==0.7.0
+anyio==4.14.2
+bcrypt==4.3.0
+certifi==2026.6.17
+click==8.4.2
+colorama==0.4.6
+detect-installer==0.1.0
+dnspython==2.8.0
+email-validator==2.3.0
+fastapi==0.139.2
+fastapi-cli==0.0.32
+fastapi-cloud-cli==0.22.2
+fastar==0.11.0
+greenlet==3.5.4
+greenlit==0.3.0
+h11==0.16.0
+httpcore==1.0.9
+httptools==0.8.0
+httpx==0.28.1
+idna==3.18
+itsdangerous==2.2.0
+Jinja2==3.1.6
+markdown-it-py==4.2.0
+MarkupSafe==3.0.3
+mdurl==0.1.2
+passlib==1.7.4
+psycopg==3.3.4
+psycopg-binary==3.3.4
+psycopg-pool==3.3.1
+psycopg2-binary==2.9.12
+pydantic==2.13.4
+pydantic-extra-types==2.11.1
+pydantic-settings==2.14.2
+pydantic_core==2.46.4
+Pygments==2.20.0
+python-dotenv==1.2.2
+python-multipart==0.0.32
+PyYAML==6.0.3
+rich==15.0.0
+rich-toolkit==0.20.3
+rignore==0.8.0
+sentry-sdk==2.66.0
+shellingham==1.5.4
+SQLAlchemy==1.4.50
+starlette==1.3.1
+typer==0.27.0
+typing-inspection==0.4.2
+typing_extensions==4.16.0
+tzdata==2026.3
+urllib3==2.7.0
+uvicorn==0.51.0
+watchfiles==1.2.0
+websockets==16.1.1
+================================================================
+
+# Routers
+
+-- to recude cluttering the main.py file, we can use router objects to define separate fiels for posts and users
+
+main.py
+
+from fastapi import FastAPI
+from . import models
+from .database import engine
+from.routers import posts, users
+
+
+
+models.Base.metadata.create_all(bind=engine)
+
+app = FastAPI()
+
+app.include_router(posts.router)
+app.include_router(users.router)
+
+
+@app.get("/")
+def root():
+    return{"message" : "Hello this is Ashish and you have reached my fastapi app using orm"}
+
+post.py
+
+from fastapi import FastAPI, Response, status, HTTPException, Depends, APIRouter
+from sqlalchemy.orm import Session
+from sqlalchemy import create_engine
+from sqlalchemy.ext.declarative import declarative_base
+from .. import models, schemas, utils
+from ..database import engine, get_db
+from typing import List
+
+router = APIRouter()
+
+@router.get("/sqlalchemy")
+def test_posts(db: Session = Depends(get_db)):
+    # Using SQLAlchemy's ORM method to query all posts from the Post model.
+    # posts = db.query(models.Post).all()
+    return {"data": "success"}
+
+@router.get("/posts", response_model=List[schemas.Post])
+def get_posts(db: Session = Depends(get_db)):
+    # Using SQLAlchemy's ORM method to query all posts from the Post model.
+    posts = db.query(models.Post).all()
+    return posts
+
+@router.post("/posts", status_code=status.HTTP_201_CREATED)
+def create_posts(post: schemas.PostCreate, db: Session = Depends(get_db)):
+    
+    new_post = models.Post(**post.model_dump())
+    db.add(new_post)
+    db.commit()
+    db.refresh(new_post)
+    return new_post
+
+@router.get("/posts/{id}", response_model=schemas.Post)
+def get_post(id: int, db: Session = Depends(get_db) ):
+    post = db.query(models.Post).filter(models.Post.id == id).first()
+    
+    if not post:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail = f"The post with id: {id} was not found")
+    return post
+
+@router.delete("/posts/{id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_post(id: int, db: Session = Depends(get_db) ):
+
+    post = db.query(models.Post).filter(models.Post.id == id)
+
+    if post.first() is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail = f"The post with id: {id} was not found")
+
+    post.delete(synchronize_session = False)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+@router.put("/posts/{id}", response_model=schemas.Post)
+def update_post(id: int, post: schemas.PostCreate, db: Session = Depends(get_db)):
+    post_query = db.query(models.Post).filter(models.Post.id == id)
+    if post_query.first() is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Post with id: {id} does not exist"
+        )
+    post_query.update(post.model_dump(), synchronize_session = False)
+    db.commit()
+    updated_post = post_query.first()
+    
+    return updated_post
+	
+	
+users.py
+
+from fastapi import FastAPI, Response, status, HTTPException, Depends, APIRouter
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy import create_engine
+from sqlalchemy.ext.declarative import declarative_base
+from .. import models, schemas, utils
+from ..database import engine, get_db
+from typing import List
+
+router = APIRouter()
+
+@router.post("/users", status_code=status.HTTP_201_CREATED, response_model=schemas.UserOut)
+def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+
+    # hashing password
+
+    
+    user.password = utils.hash_password(user.password)
+    
+    new_user = models.User(**user.model_dump())
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return new_user
+
+
+@router.get('/users/{id}', response_model=schemas.UserOut)
+def get_user(id: int, db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.id == id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"User with id: {id} does not exist" )
+    return user
+	
+	
+# Router prefixes and tags
+
+
+# authentication:
+
+Session-based authentication – A session is stored on the backend server (or API) to track whether a user is logged in. This session data is typically saved in memory or in a database and remains active until the user logs out.
+
+
+
+JWT token-based authentication – This stateless approach involves no backend storage for login sessions. Instead, the client stores a token containing all the necessary authentication details, and the API verifies this token to authenticate the user.
+
+
+JWT token-based authentication simplifies horizontal scaling and reduces backend storage needs since the client is responsible for holding the token.
+
+When a user logs in successfully via JWT, the API generates a token that the client retains. Every time the client needs to access a protected resource (for example, hitting the /posts endpoint), it sends the token in the request header. The API then validates the token to ensure the user is authenticated. The typical flow is as follows:
+The client sends credentials (usually an email and password) to a login endpoint (e.g., /login).
+The API validates the credentials and, if they are correct, generates a JWT token.
+The client stores this token and includes it in the header for all subsequent requests to protected resources.
+The API extracts and verifies the token. If the token is valid, the API responds with the requested data.
+
+JWT Token Structure
+A JWT token is comprised of three parts separated by dots: the header, the payload, and the signature. Although the token is just a string, it carries structured data essential for authentication.
+​
+1. Header
+The header contains metadata about the token, such as the token type and the algorithm used for signing. A typical header looks like this:
+{
+  "alg": "HS256",
+  "typ": "JWT"
+}
+​
+2. Payload
+The payload includes the actual data (claims) of the token. This can include non-sensitive information such as the user’s ID, name, or role. It is important to note that the payload is not encrypted, so sensitive data (like passwords) should never be stored here.
+{
+  "sub": "1234567890",
+  "name": "John Doe",
+  "iat": 1516239022
+}
+You might also include additional metadata like user roles, but always keep the payload lightweight to reduce the overall token size.
+​
+3. Signature
+The signature ensures the integrity of the token—it detects any tampering. To generate the signature, the API encodes the header and payload with a secret key (known only to the API) using a hashing algorithm (commonly HS256). In pseudocode, the process is as follows:
+# Compute the signature for the token
+signature = HMACSHA256(
+    base64UrlEncode(header) + "." + base64UrlEncode(payload),
+    your_256_bit_secret
+)
+Below is a consolidated example that outlines the JWT token generation process:
+# Header
+header = {
+    "alg": "HS256",
+    "typ": "JWT"
+}
+
+# Payload
+payload = {
+    "sub": "1234567890",
+    "name": "John Doe",
+    "iat": 1516239022
+}
+
+# Signature generation (pseudocode)
+# The signature is generated by concatenating the base64Url encoded header and payload,
+# separated by a period, and then hashing this string with a secret key.
+# Example:
+# HMACSHA256(
+#     base64UrlEncode(header) + "." + base64UrlEncode(payload),
+#     your_256_bit_secret
+# )
+The final JWT token is formed by concatenating the base64Url encoded header, payload, and signature with dots (.) used as separators.
+
+The token verification process works as follows:
+The API receives the token along with the client’s request.
+It extracts the header and payload from the token and recomputes the signature using the secret key.
+If the recomputed signature matches the signature in the token, the token is considered valid.
+If the signatures do not match, the API rejects the token, ensuring that tampered tokens are not accepted.
+
+
+from jose import JWTError, jwt
+from datetime import datetime, timedelta
+
+SECRET_KEY = "818aad4c3e764b858c5b87af7f6ffa33231220544c0b31458a995959e6150537"
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 15
+
+def create_access_token(data: dict):
+    to_encode = data.copy()
+    expire = datetime.now() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+    return encoded_jwt
+
+
+from fastapi import APIRouter, Depends, status, HTTPException, Response
+from sqlalchemy.orm import Session
+from .. import database, schemas, models, utils, oauth2
+
+router =  APIRouter(tags=['Authentication'])
+
+@router.post('/login')
+def login(user_credentials: schemas.UserLogin, db: Session = Depends(database.get_db)):
+
+    user = db.query(models.User).filter(models.User.email == user_credentials.email).first()
+
+    if not user:
+        raise HTTPException(status_code = status.HTTP_404_NOT_FOUND, detail= 'Invalid credentials')
+
+    if not utils.verify(user_credentials.password, user.password):
+        raise HTTPException(status_code = status.HTTP_404_NOT_FOUND, detail= 'Invalid credentials')
+
+    access_token = oauth2.create_access_token(data = {"user_id" : user.id})
+
+    return {"access_token": access_token, "token_type": "Bearer"}
+	
+	
+	
+	
+	
+	
+	
+	
+# using password request form:
+
+
+from fastapi import APIRouter, Depends, status, HTTPException, Response
+from sqlalchemy.orm import Session
+from fastapi.security.oauth2 import OAuth2PasswordRequestForm
+from .. import database, schemas, models, utils, oauth2
+
+router =  APIRouter(tags=['Authentication'])
+
+@router.post('/login')
+def login(user_credentials: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(database.get_db)):
+
+    user = db.query(models.User).filter(models.User.email == user_credentials.username).first()
+
+    if not user:
+        raise HTTPException(status_code = status.HTTP_404_NOT_FOUND, detail= 'Invalid credentials')
+
+    if not utils.verify(user_credentials.password, user.password):
+        raise HTTPException(status_code = status.HTTP_404_NOT_FOUND, detail= 'Invalid credentials')
+
+    access_token = oauth2.create_access_token(data = {"user_id" : user.id})
+
+    return {"access_token": access_token, "token_type": "Bearer"}
+	
+	
+# verifying access token
+
+
+oauth2.py
+=======
+from jose import JWTError, jwt
+from datetime import datetime, timedelta
+from fastapi import Depends, status, HTTPException
+from fastapi.security import OAuth2PasswordBearer
+from . import schemas
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+
+SECRET_KEY = "818aad4c3e764b858c5b87af7f6ffa33231220544c0b31458a995959e6150537"
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 15
+
+def create_access_token(data: dict):
+    to_encode = data.copy()
+    expire = datetime.now() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+    return encoded_jwt
+
+
+def verify_access_token(token: str, credentials_exception):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        id: str = payload.get("user_id")
+        if id is None:
+            raise credentials_exception
+        token_data = schemas.TokenData(id=id)
+    except JWTError:
+        raise credentials_exception
+    return token_data
+
+def get_current_user(token: str = Depends(oauth2_scheme)):
+    credentials_exception = HTTPException(
+        status_code= status.HTTP_401_UNAUTHORIZED,
+        detail = "Could not validate credentails",
+        headers={"WWW-Authenticate": "Bearer"}
+    )
+    return verify_access_token(token, credentials_exception)
+	======
+	
+# protecting routes
+
+
+============================================================
+from fastapi import FastAPI, Response, status, HTTPException, Depends, APIRouter
+from sqlalchemy.orm import Session
+from sqlalchemy import create_engine
+from sqlalchemy.ext.declarative import declarative_base
+from .. import models, schemas, utils, oauth2
+from ..database import engine, get_db
+from typing import List
+
+router = APIRouter(tags=['Posts'])
+
+@router.get("/sqlalchemy")
+def test_posts(db: Session = Depends(get_db)):
+    # Using SQLAlchemy's ORM method to query all posts from the Post model.
+    # posts = db.query(models.Post).all()
+    return {"data": "success"}
+
+@router.get("/posts", response_model=List[schemas.Post])
+def get_posts(db: Session = Depends(get_db), user_id: int = Depends(oauth2.get_current_user)):
+    # Using SQLAlchemy's ORM method to query all posts from the Post model.
+    posts = db.query(models.Post).all()
+    return posts
+
+@router.post("/posts", status_code=status.HTTP_201_CREATED)
+def create_posts(post: schemas.PostCreate, db: Session = Depends(get_db), user_id: int = Depends(oauth2.get_current_user)):
+
+    print(user_id)
+    new_post = models.Post(**post.model_dump())
+    db.add(new_post)
+    db.commit()
+    db.refresh(new_post)
+    return new_post
+
+@router.get("/posts/{id}", response_model=schemas.Post)
+def get_post(id: int, db: Session = Depends(get_db), user_id: int = Depends(oauth2.get_current_user)):
+    post = db.query(models.Post).filter(models.Post.id == id).first()
+    
+    if not post:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail = f"The post with id: {id} was not found")
+    return post
+
+@router.delete("/posts/{id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_post(id: int, db: Session = Depends(get_db), user_id: int = Depends(oauth2.get_current_user) ):
+
+    post = db.query(models.Post).filter(models.Post.id == id)
+
+    if post.first() is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail = f"The post with id: {id} was not found")
+
+    post.delete(synchronize_session = False)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+@router.put("/posts/{id}", response_model=schemas.Post)
+def update_post(id: int, post: schemas.PostCreate, db: Session = Depends(get_db), user_id: int = Depends(oauth2.get_current_user)):
+    post_query = db.query(models.Post).filter(models.Post.id == id)
+    if post_query.first() is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Post with id: {id} does not exist"
+        )
+    post_query.update(post.model_dump(), synchronize_session = False)
+    db.commit()
+    updated_post = post_query.first()
+    
+    return updated_post
+==========================================================================
+
+
+
+updated posts table:
+
+from fastapi import FastAPI, Response, status, HTTPException, Depends, APIRouter
+from sqlalchemy.orm import Session
+from sqlalchemy import create_engine
+from sqlalchemy.ext.declarative import declarative_base
+from .. import models, schemas, utils, oauth2
+from ..database import engine, get_db
+from typing import List
+
+router = APIRouter(tags=['Posts'])
+
+@router.get("/sqlalchemy")
+def test_posts(db: Session = Depends(get_db)):
+    # Using SQLAlchemy's ORM method to query all posts from the Post model.
+    # posts = db.query(models.Post).all()
+    return {"data": "success"}
+
+@router.get("/posts", response_model=List[schemas.Post])
+def get_posts(db: Session = Depends(get_db), current_user: int = Depends(oauth2.get_current_user)):
+    # Using SQLAlchemy's ORM method to query all posts from the Post model.
+    posts = db.query(models.Post).all()
+    return posts
+
+@router.post("/posts", status_code=status.HTTP_201_CREATED)
+def create_posts(post: schemas.PostCreate, db: Session = Depends(get_db), current_user: int = Depends(oauth2.get_current_user)):
+
+    print(current_user.id)
+    new_post = models.Post(owner_id=current_user.id,**post.model_dump())
+    db.add(new_post)
+    db.commit()
+    db.refresh(new_post)
+    return new_post
+
+@router.get("/posts/{id}", response_model=schemas.Post)
+def get_post(id: int, db: Session = Depends(get_db), current_user: int = Depends(oauth2.get_current_user)):
+    post = db.query(models.Post).filter(models.Post.id == id).first()
+    
+    if not post:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail = f"The post with id: {id} was not found")
+    return post
+
+@router.delete("/posts/{id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_post(id: int, db: Session = Depends(get_db), current_user: int = Depends(oauth2.get_current_user) ):
+
+    post_query = db.query(models.Post).filter(models.Post.id == id)
+    post = post_query.first()
+   
+
+    if post is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail = f"The post with id: {id} was not found")
+
+    if post.owner_id != current_user.id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Not Authorized to perform requested action")
+
+    post_query.delete(synchronize_session = False)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+@router.put("/posts/{id}", response_model=schemas.Post)
+def update_post(id: int, updated_post: schemas.PostCreate, db: Session = Depends(get_db), current_user: int = Depends(oauth2.get_current_user)):
+    post_query = db.query(models.Post).filter(models.Post.id == id)
+    post = post_query.first()
+    if post is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Post with id: {id} does not exist"
+        )
+    if post.owner_id != current_user.id:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Not Authorized to perform requested action")
+    
+    post_query.update(post.model_dump(), synchronize_session = False)
+    db.commit()
+    updated_post = post_query.first()
+    
+    return updated_post
+	
+	
+	
+updated models with foreign key
+
+
+from sqlalchemy import Column, Integer, String, Boolean, text, ForeignKey
+from .database import Base
+from sqlalchemy.sql.sqltypes import TIMESTAMP
+from sqlalchemy.orm import relationship
+
+class Post(Base):
+    __tablename__ = "posts_sqlalchemy"
+
+    id = Column(Integer, primary_key=True, nullable=False)
+    title = Column(String, nullable=False)
+    content = Column(String, nullable=False)
+    published = Column(Boolean, server_default='True', nullable=False)
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text('now()'))
+    owner_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    owner = relationship("User")
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, nullable=False)
+    email = Column(String, nullable=False, unique=True)
+    password = Column(String, nullable=False)
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text('now()'))
+	
+	
+	
+# Query Parameters
+
+# Environment Variables
+
+
+# Voting logic
+
+from fastapi import FastAPI, Response, status, HTTPException, Depends, APIRouter
+from sqlalchemy.orm import Session
+from .. import schemas, database, models, oauth2
+
+
+router = APIRouter(
+    prefix="/vote",
+    tags=["Vote"]
+)
+
+
+@router.post("/", status_code=status.HTTP_201_CREATED)
+def vote(vote: schemas.Vote, db: Session = Depends(database.get_db), current_user: int = Depends(oauth2.get_current_user)):
+    # Check if the target post exists
+    post = db.query(models.Post).filter(models.Post.id == vote.post_id).first()
+    if not post:
+        raise HTTPException(status_code=404, detail="Post not found")
+    
+    vote_query = db.query(models.Vote).filter(
+        models.Vote.post_id == vote.post_id, 
+        models.Vote.user_id == current_user.id
+    )
+    found_vote = vote_query.first()
+
+    if vote.dir == 1:
+        if found_vote:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"user {current_user.id} has already voted on post {vote.post_id}"
+            )
+        new_vote = models.Vote(post_id=vote.post_id, user_id=current_user.id)
+        db.add(new_vote)
+        db.commit()
+        return {"message": "successfully added vote"}
+    else:
+        if not found_vote:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vote does not exist")
+        vote_query.delete(synchronize_session=False)
+        db.commit()
+        return {"message": "successfully deleted vote"}
+
+
+
+
+
+
+    
+
+# Composite key
+
+# joins
+
+https://neon.com/postgresql/tutorial/joins
+
+
+select * from posts_sqlalchemy LEFT JOIN users ON posts_sqlalchemy.owner_id = users.id;
+
+SELECT posts_sqlalchemy.*, COUNT(votes.post_id) AS votes
+FROM posts_sqlalchemy
+LEFT JOIN votes ON posts_sqlalchemy.id = votes.post_id
+GROUP BY posts_sqlalchemy.id;
+
+If your response model does not match the exact shape (keys, nesting, capitalization) of the returned data, FastAPI/Pydantic will raise validation errors. Update the returned data shape or the response model to match.
+
+
+@router.get("/posts", response_model=List[schemas.PostOut])
+def get_posts(db: Session = Depends(get_db), current_user: int = Depends(oauth2.get_current_user), limit: int = 10, skip: int = 0, search: Optional[str] = ""):
+    # Using SQLAlchemy's ORM method to query all posts from the Post model.
+    # posts = db.query(models.Post).all()
+    results = (
+        db.query(models.Post, func.count(models.Vote.post_id).label("votes"))
+        .join(models.Vote, models.Vote.post_id == models.Post.id, isouter=True)
+        .group_by(models.Post.id)
+        .filter(models.Post.title.contains(search))
+        .limit(limit)
+        .offset(skip)
+        .all()
+    )
+    return results
+	
+	
+@router.get("/posts/{id}", response_model=schemas.PostOut)
+def get_post(id: int, db: Session = Depends(get_db), current_user: int = Depends(oauth2.get_current_user)):
+    post = db.query(models.Post).filter(models.Post.id == id).first()
+    
+    if not post:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail = f"The post with id: {id} was not found")
+    
+    # Join posts with votes to count the number of votes for this post
+    result = db.query(models.Post, func.count(models.Vote.post_id).label("votes")).join(
+        models.Vote, models.Vote.post_id == models.Post.id, isouter=True
+    ).group_by(models.Post.id).filter(models.Post.id == id).first()
+    
+    return result
+	
+
+
+
+
+##END
